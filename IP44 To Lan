@@ -1,0 +1,116 @@
+/interface bridge
+add add-dhcp-option82=yes dhcp-snooping=yes name=bridge_repeater
+
+/interface l2tp-client
+add allow=mschap2 connect-to=gw01.ham.in.th disabled=no ipsec-secret=dtdxa \
+    name=l2tp_44 password=xxx user=xxx
+
+/interface list
+add name=wan
+add name=LAN
+
+
+/ip pool
+add name=dhcp_pool7 ranges=172.16.16.2-172.16.16.253
+add name=vpn ranges=192.168.255.1-192.168.255.254
+
+/ip dhcp-server
+add address-pool=dhcp_pool7 disabled=no interface=bridge_repeater lease-time=1h \
+    name=dhcp2
+
+/ppp profile
+add change-tcp-mss=yes dns-server=192.168.255.255 local-address=\
+    192.168.255.255 name=vpn remote-address=vpn use-encryption=yes
+
+   
+/snmp community
+add addresses=::/0 authentication-password=snmpsnmp name=mrnonaki security=\
+    authorized
+
+
+/interface l2tp-server server
+set allow-fast-path=yes authentication=mschap2 default-profile=vpn enabled=\
+    yes ipsec-secret=dtdxa use-ipsec=yes
+
+/interface list member
+add interface=ether1 list=wan
+add interface=l2tp_44 list=wan
+add interface=bridge_repeater list=LAN
+
+/ip address
+add address=172.16.16.1/24 interface=bridge_repeater network=172.16.16.0
+
+/ip dhcp-client
+add disabled=no interface=ether1
+
+/ip dhcp-server network
+add address=172.16.16.0/24 dns-server=8.8.8.8 gateway=172.16.16.1
+
+/ip dns
+set allow-remote-requests=yes servers=8.8.8.8,8.8.4.4,1.1.1.1
+
+/ip firewall address-list
+add address=172.16.16.0/24 list=lan
+
+
+/ip firewall filter
+add action=drop chain=input dst-port=53 in-interface-list=wan protocol=udp
+/ip firewall mangle
+
+add action=mark-connection chain=input in-interface=ether1 \
+    new-connection-mark=conn_uplink passthrough=yes
+add action=mark-connection chain=input in-interface=l2tp_44 \
+    new-connection-mark=conn_44 passthrough=yes
+add action=mark-routing chain=output connection-mark=conn_uplink \
+    new-routing-mark=out_uplink passthrough=no
+add action=mark-routing chain=output connection-mark=conn_44 \
+    new-routing-mark=out_44 passthrough=no
+add action=mark-connection chain=prerouting in-interface=ether1 \
+    new-connection-mark=conn_uplink passthrough=yes
+add action=mark-connection chain=prerouting in-interface=l2tp_44 \
+    new-connection-mark=conn_44 passthrough=yes
+
+add action=mark-connection chain=prerouting dst-address-list=!lan \
+    dst-address-type=!local in-interface=bridge_local new-connection-mark=\
+    conn_uplink passthrough=yes
+add action=mark-connection chain=prerouting dst-address-list=!lan \
+    dst-address-type=!local in-interface=bridge_repeater new-connection-mark=\
+    conn_44 passthrough=yes
+add action=mark-routing chain=prerouting connection-mark=conn_uplink \
+    dst-address-list=!lan dst-address-type=!local new-routing-mark=out_uplink \
+    passthrough=no
+add action=mark-routing chain=prerouting connection-mark=conn_44 \
+    dst-address-list=!lan dst-address-type=!local new-routing-mark=out_44 \
+    passthrough=no
+
+
+/ip firewall nat
+add action=masquerade chain=srcnat out-interface=ether1 src-address=\
+    192.168.255.0/24
+add action=masquerade chain=srcnat out-interface=l2tp_44 src-address=\
+    172.16.16.0/24
+
+
+/ip firewall service-port
+set ftp disabled=yes
+set tftp disabled=yes
+set irc disabled=yes
+set h323 disabled=yes
+set sip disabled=yes
+set pptp disabled=yes
+set udplite disabled=yes
+set dccp disabled=yes
+set sctp disabled=yes
+
+/ip route
+add distance=1 gateway=l2tp_44 routing-mark=out_44
+
+
+/ip service
+set telnet disabled=yes
+set ftp disabled=yes
+set www port=55580
+set ssh disabled=yes
+set api disabled=yes
+set winbox port=58291
+set api-ssl disabled=yes
