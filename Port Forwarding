@@ -1,0 +1,5 @@
+/ip firewall nat
+add action=dst-nat chain=dstnat dst-port=80 in-interface-list=wan \
+    protocol=tcp to-addresses=xxx.xx.xx.xxx to-ports=80
+add action=dst-nat chain=dstnat dst-port=4569 in-interface-list=wan \
+    protocol=udp to-addresses=xxx.xx.xx.xxx to-ports=4569
